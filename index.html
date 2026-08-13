@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dr. Bless Pro - AI Dashboard</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Space Grotesk', sans-serif; background-color: #050505; color: #e2e8f0; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .glass { background: rgba(20, 20, 25, 0.8); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .glow-green { box-shadow: 0 0 15px rgba(34, 197, 94, 0.2); }
+        .glow-red { box-shadow: 0 0 15px rgba(239, 68, 68, 0.2); }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <!-- Top Navigation -->
+    <nav class="p-6 border-b border-gray-800 glass flex justify-between items-center sticky top-0 z-50">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center font-bold text-black text-xl">B</div>
+            <h1 class="text-xl font-bold tracking-tighter text-white">DR. BLESS <span class="text-green-500">PRO</span></h1>
+        </div>
+        <div id="status-badge" class="px-4 py-1 rounded-full bg-red-900/30 text-red-500 text-xs font-bold border border-red-900/50">SYSTEM OFFLINE</div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto p-4 md:p-10 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- Upande wa Kushoto: Connection & Anti-Spam (4 Columns) -->
+        <div class="lg:col-span-4 space-y-6">
+            <div class="glass p-8 rounded-3xl glow-green">
+                <h2 class="text-green-500 font-bold mb-6 flex items-center gap-2">🔌 CONNECTION CENTER</h2>
+                <input id="phone" type="text" class="w-full bg-black/50 border border-gray-700 p-4 rounded-xl mb-4 text-green-400 outline-none" placeholder="Ingiza Namba (255...)">
+                <input id="ip" type="text" class="w-full bg-black/50 border border-gray-700 p-4 rounded-xl mb-4 text-blue-400 outline-none" placeholder="Server IP">
+                
+                <button onclick="startEngine()" id="btn-start" class="w-full bg-green-600 hover:bg-green-500 text-black p-4 rounded-xl font-black uppercase transition-all mb-4">Scan QR Now</button>
+                <button onclick="stopEngine()" id="btn-stop" class="w-full bg-transparent border border-red-600 text-red-600 hover:bg-red-600 hover:text-white p-4 rounded-xl font-black uppercase transition-all">Emergency Stop</button>
+
+                <div id="qr-container" class="mt-8 bg-white p-4 hidden rounded-2xl mx-auto w-fit">
+                    <div id="qrcode"></div>
+                </div>
+            </div>
+
+            <div class="glass p-8 rounded-3xl border-blue-900/20">
+                <h2 class="text-blue-400 font-bold mb-4">🛡️ ANTI-SPAM SETTINGS</h2>
+                <div class="space-y-4">
+                    <label class="block text-xs text-gray-500 uppercase">Gap kati ya SMS (Dakika)</label>
+                    <input id="interval" type="number" value="1" class="w-full bg-black border border-gray-800 p-3 rounded-lg text-white">
+                    <label class="block text-xs text-gray-500 uppercase">Meseji ngapi kwa Batch moja?</label>
+                    <input id="batch" type="number" value="5" class="w-full bg-black border border-gray-800 p-3 rounded-lg text-white">
+                </div>
+            </div>
+        </div>
+
+        <!-- Upande wa Kulia: AI Command, Task & Chat (8 Columns) -->
+        <div class="lg:col-span-8 space-y-6">
+            
+            <!-- Prompt & Logic Editor -->
+            <div class="glass p-8 rounded-3xl">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-yellow-500 font-bold uppercase tracking-widest text-sm">🧠 AI Prompt & Instructions</h2>
+                    <button onclick="uploadFile()" class="text-[10px] bg-gray-800 px-3 py-1 rounded-full text-gray-400">UPLOAD GUIDELINES</button>
+                </div>
+                <textarea id="prompt" rows="6" class="w-full bg-black/50 border border-gray-800 p-5 rounded-2xl text-yellow-100 text-sm mono focus:border-yellow-600 outline-none" placeholder="Andika hapa mwongozo wa AI au majukumu... (Mfano: Kagua SMS za wiki 2 zilizopita na uulize hali zao)"></textarea>
+                
+                <div class="grid grid-cols-2 gap-4 mt-6">
+                    <button onclick="updateLogic()" class="bg-yellow-600 hover:bg-yellow-500 text-black py-3 rounded-xl font-bold uppercase text-xs">Save Logic</button>
+                    <button onclick="runBacklog()" class="bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold uppercase text-xs italic">Start Backlog Recovery</button>
+                </div>
+            </div>
+
+            <!-- AI Assistant Chat -->
+            <div class="glass p-8 rounded-3xl flex flex-col h-[400px]">
+                <h2 class="text-indigo-400 font-bold text-xs uppercase mb-4">💬 Chat with Dr. Bless AI (Assistant)</h2>
+                <div id="ai-chat" class="flex-1 overflow-y-auto text-sm space-y-4 mb-4 pr-2 scrollbar-hide">
+                    <div class="text-gray-500 italic">Anza kwa kumuelekeza AI nini cha kufanya...</div>
+                </div>
+                <div class="flex gap-3">
+                    <input id="ai-input" type="text" class="flex-1 bg-black border border-gray-800 p-4 rounded-xl text-sm outline-none" placeholder="Muelekeze AI: 'Panga majukumu ya leo'...">
+                    <button onclick="chatAI()" class="bg-indigo-600 p-4 rounded-xl">SEND</button>
+                </div>
+            </div>
+
+            <!-- Execution Logs -->
+            <div class="bg-black border border-gray-800 p-8 rounded-3xl h-64 overflow-y-auto">
+                <h2 class="text-gray-600 font-bold text-[10px] uppercase mb-4">Execution Console</h2>
+                <div id="logs" class="text-[11px] mono space-y-2"></div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        const socket = io();
+        let qrcodeDisplay = new QRCode(document.getElementById("qrcode"), { width: 200, height: 200 });
+
+        function startEngine() {
+            const data = {
+                phone: document.getElementById('phone').value,
+                ip: document.getElementById('ip').value,
+                prompt: document.getElementById('prompt').value,
+                interval: document.getElementById('interval').value
+            };
+            addLog("System: Initializing WhatsApp components...");
+            socket.emit('start-engine', data);
+        }
+
+        function stopEngine() {
+            socket.emit('stop-engine');
+            addLog("System: STOPPED BY USER.");
+        }
+
+        function updateLogic() {
+            const prompt = document.getElementById('prompt').value;
+            socket.emit('update-logic', prompt);
+            addLog("AI: New logic implemented and saved to Supabase.");
+        }
+
+        socket.on('qr', (qr) => {
+            document.getElementById('qr-container').classList.remove('hidden');
+            qrcodeDisplay.clear(); qrcodeDisplay.makeCode(qr);
+            addLog("System: QR Code is ready for scanning.");
+        });
+
+        socket.on('ready', () => {
+            document.getElementById('qr-container').classList.add('hidden');
+            document.getElementById('status-badge').innerText = "SYSTEM ONLINE";
+            document.getElementById('status-badge').className = "px-4 py-1 rounded-full bg-green-900/30 text-green-500 text-xs font-bold border border-green-900/50";
+            addLog("System: WhatsApp and Supabase Linked Successfully!");
+        });
+
+        socket.on('log', (msg) => addLog(msg));
+
+        function addLog(text) {
+            const logs = document.getElementById('logs');
+            const div = document.createElement('div');
+            div.innerHTML = `<span class="text-gray-600">[${new Date().toLocaleTimeString()}]</span> <span class="text-green-600">${text}</span>`;
+            logs.appendChild(div);
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function chatAI() {
+            const input = document.getElementById('ai-input').value;
+            const chatBox = document.getElementById('ai-chat');
+            chatBox.innerHTML += `<div class="text-white">User: ${input}</div>`;
+            socket.emit('ai-assistant', input);
+            document.getElementById('ai-input').value = "";
+        }
+
+        socket.on('ai-reply', (reply) => {
+            document.getElementById('ai-chat').innerHTML += `<div class="text-indigo-400">AI: ${reply}</div>`;
+        });
+    </script>
+</body>
+</html>
